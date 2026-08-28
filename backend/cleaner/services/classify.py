@@ -18,6 +18,14 @@ Categorias possíveis (use exatamente estas strings): IMPORTANTE, SPAN, LIXEIRA.
 - SPAN: propaganda, phishing, golpes, emails não solicitados.
 - LIXEIRA: emails que não são spam mas não têm mais utilidade (notificações antigas, confirmações expiradas, newsletters que o usuário não lê mais, etc.).
 
+Alguns emails vêm com um campo extra "historico": {{"importante": N, "span": N, "lixeira": N}} — é a
+contagem de quantas vezes esse mesmo remetente já foi classificado em cada categoria em execuções
+anteriores. Use isso como sinal forte sobre o padrão real do remetente: se o histórico é quase todo
+span/lixeira e nunca importante, é forte indício de que esse remetente só manda coisa descartável de
+novo. Se o histórico é quase todo importante, dê benefício da dúvida a favor de importante. Se o
+histórico é misto, avalie pelo conteúdo deste email específico — não generalize. Email sem o campo
+"historico" é a primeira vez que esse remetente aparece: decida só pelo conteúdo.
+
 Um item na resposta para cada email da lista recebida, na mesma ordem, usando o campo "id" fornecido em cada email."""
 
 RESPONSE_SCHEMA = {

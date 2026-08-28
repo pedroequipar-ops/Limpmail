@@ -178,26 +178,12 @@ def job_status(request, job_id):
     return Response(_job_status_payload(job))
 
 
-def _sender_label(from_addr):
-    """Extrai um rotulo legivel do remetente pra agrupar no resumo: o nome de exibicao
-    ("SHEIN" <shein@edm.shein.com> -> "SHEIN"), ou o dominio do email como fallback --
-    assim remetentes com varios subdominios de disparo (edm.shein.com, market.sheinmail.com)
-    ainda agrupam sob o mesmo nome reconhecivel."""
-    match = re.match(r'^"?([^"<]+?)"?\s*<', from_addr or '')
-    if match and match.group(1).strip():
-        return match.group(1).strip()
-    match2 = re.search(r'@([\w.-]+)', from_addr or '')
-    if match2:
-        return match2.group(1)
-    return (from_addr or '(desconhecido)')[:40]
-
-
 def _build_summary(job):
     with_final = EmailRecord.objects.filter(job=job).annotate(final_cat=Coalesce('user_override', 'ai_category'))
     summary = {}
     for category in VALID_CATEGORIES:
         from_addrs = with_final.filter(final_cat=category).values_list('from_addr', flat=True)
-        counter = Counter(_sender_label(addr) for addr in from_addrs)
+        counter = Counter(fetch.sender_label(addr) for addr in from_addrs)
         summary[category] = {
             'total': sum(counter.values()),
             'top_senders': [{'sender': name, 'count': c} for name, c in counter.most_common(8)],

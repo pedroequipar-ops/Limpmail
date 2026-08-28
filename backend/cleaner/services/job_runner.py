@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ..models import EmailRecord, Instruction, Job
-from . import classify, fetch, imap_pool
+from . import classify, fetch, imap_pool, reputation
 
 DB_WRITE_LOCK = threading.Lock()
 
@@ -189,24 +189,30 @@ def _classify_phase(job):
         batches = list(fetch.chunked(candidates, settings.CLASSIFY_BATCH_SIZE))
         with ThreadPoolExecutor(max_workers=settings.GEMINI_MAX_WORKERS) as executor:
             futures = [
-                executor.submit(_classify_one_batch, batch, instruction_text, rate_limiter)
+                executor.submit(_classify_one_batch, job.account, batch, instruction_text, rate_limiter)
                 for batch in batches
             ]
             for f in futures:
                 f.result()
 
 
-def _classify_one_batch(batch_records, instruction_text, rate_limiter):
-    items = [
-        {
+def _classify_one_batch(account, batch_records, instruction_text, rate_limiter):
+    senders = [fetch.sender_label(r.from_addr) for r in batch_records]
+    reputation_map = reputation.get_reputation_map(account, senders)
+
+    items = []
+    for i, (r, sender) in enumerate(zip(batch_records, senders)):
+        item = {
             'id': i,
             'from': r.from_addr,
             'subject': r.subject,
             'date': r.date,
             'snippet': r.snippet[:150],
         }
-        for i, r in enumerate(batch_records)
-    ]
+        historico = reputation_map.get(sender)
+        if historico:
+            item['historico'] = historico
+        items.append(item)
 
     try:
         result_map = classify.classify_batch(items, instruction_text, rate_limiter)
@@ -216,6 +222,7 @@ def _classify_one_batch(batch_records, instruction_text, rate_limiter):
 
     to_update = []
     failed = []
+    sender_categories = []
     for i, record in enumerate(batch_records):
         category = result_map.get(i)
         if category:
@@ -223,12 +230,15 @@ def _classify_one_batch(batch_records, instruction_text, rate_limiter):
             record.classify_status = 'done'
             record.apply_status = 'not_applicable' if category == 'IMPORTANTE' else 'pending'
             to_update.append(record)
+            sender_categories.append((senders[i], category))
         else:
             failed.append(record)
 
     with DB_WRITE_LOCK:
         if to_update:
             EmailRecord.objects.bulk_update(to_update, ['ai_category', 'classify_status', 'apply_status'])
+        if sender_categories:
+            reputation.record_classifications(account, sender_categories)
     if failed:
         _mark_classify_failed(failed)
 

@@ -95,6 +95,20 @@ def extract_message_id(raw: bytes) -> str:
     return (msg.get('Message-ID', '') or '').strip()
 
 
+def sender_label(from_addr):
+    """Extrai um rotulo legivel do remetente pra agrupar (resumo, historico de reputacao):
+    o nome de exibicao ("SHEIN" <shein@edm.shein.com> -> "SHEIN"), ou o dominio do email como
+    fallback -- assim remetentes com varios subdominios de disparo (edm.shein.com,
+    market.sheinmail.com) ainda agrupam sob o mesmo nome reconhecivel."""
+    match = re.match(r'^"?([^"<]+?)"?\s*<', from_addr or '')
+    if match and match.group(1).strip():
+        return match.group(1).strip()
+    match2 = re.search(r'@([\w.-]+)', from_addr or '')
+    if match2:
+        return match2.group(1)
+    return (from_addr or '(desconhecido)')[:40]
+
+
 def _cut_unclosed_style_script(text):
     # o fetch e truncado em N bytes; se um bloco <style>/<script> abrir sem fechar dentro da
     # janela, tudo dali pra frente e ruido (CSS/JS cru) — corta a partir da tag aberta.

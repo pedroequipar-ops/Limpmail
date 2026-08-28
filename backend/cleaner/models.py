@@ -100,3 +100,22 @@ class EmailRecord(models.Model):
     @property
     def final_category(self):
         return self.user_override or self.ai_category
+
+
+class SenderReputation(models.Model):
+    """Placar acumulado por remetente (nome de exibicao ou dominio): quantas vezes ja foi
+    classificado como IMPORTANTE / SPAN / LIXEIRA ao longo de execucoes anteriores. Sobrevive
+    a resets de job (Zerar) -- e o que da a classificacao "memoria" sobre remetentes que so
+    mandam porcaria (nunca IMPORTANTE) vs remetentes com historico misto."""
+
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, related_name='sender_reputations')
+    sender = models.CharField(max_length=255, db_index=True)
+    importante_count = models.IntegerField(default=0)
+    span_count = models.IntegerField(default=0)
+    lixeira_count = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['account', 'sender'], name='unique_sender_per_account'),
+        ]
