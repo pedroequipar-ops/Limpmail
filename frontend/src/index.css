@@ -164,7 +164,7 @@ button.danger {
 }
 
 .badge.IMPORTANTE { background: rgba(51, 176, 111, 0.15); color: var(--ok); }
-.badge.SPAM { background: rgba(229, 72, 77, 0.15); color: var(--danger); }
+.badge.SPAN { background: rgba(229, 72, 77, 0.15); color: var(--danger); }
 .badge.LIXEIRA { background: rgba(224, 168, 49, 0.15); color: var(--warn); }
 .badge.pending { background: rgba(154, 161, 172, 0.15); color: var(--muted); }
 .badge.failed { background: rgba(229, 72, 77, 0.15); color: var(--danger); }
@@ -254,4 +254,43 @@ tr:hover td { background: var(--panel-2); }
   font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.summary-col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.summary-list li span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import client from '../api/client.js'
 import CategoryBadge from '../components/CategoryBadge.jsx'
 
-const CATEGORIES = ['IMPORTANTE', 'SPAM', 'LIXEIRA']
+const CATEGORIES = ['IMPORTANTE', 'SPAN', 'LIXEIRA']
 
 export default function ReviewPage() {
   const [jobId, setJobId] = useState(null)
@@ -83,8 +83,8 @@ export default function ReviewPage() {
             <div className="label">Importante</div>
           </div>
           <div className="stat">
-            <div className="value">{counts.SPAM}</div>
-            <div className="label">Spam</div>
+            <div className="value">{counts.SPAN}</div>
+            <div className="label">Span</div>
           </div>
           <div className="stat">
             <div className="value">{counts.LIXEIRA}</div>

@@ -37,9 +37,9 @@ export default function ApplyPage() {
   }
 
   async function handleApply() {
-    const toMove = (counts?.SPAM || 0) + (counts?.LIXEIRA || 0)
+    const toMove = (counts?.SPAN || 0) + (counts?.LIXEIRA || 0)
     const confirmed = window.confirm(
-      `Isso vai mover ${toMove} emails (SPAM + LIXEIRA) de verdade na sua caixa. IMPORTANTE não é tocado. Confirmar?`
+      `Isso vai mover ${toMove} emails (SPAN + LIXEIRA) de verdade na sua caixa. IMPORTANTE não é tocado. Confirmar?`
     )
     if (!confirmed) return
 
@@ -80,15 +80,15 @@ export default function ApplyPage() {
     <div>
       <h1>Aplicar movimentação</h1>
       <p className="hint">
-        Move SPAM para a pasta de spam e LIXEIRA para a pasta de lixeira. IMPORTANTE nunca é tocado.
+        Move SPAN para a pasta de spam e LIXEIRA para a pasta de lixeira. IMPORTANTE nunca é tocado.
         A operação é idempotente: pode ser rodada de novo com segurança.
       </p>
 
       <div className="card">
         <div className="stats">
           <div className="stat">
-            <div className="value">{counts?.SPAM ?? '—'}</div>
-            <div className="label">A mover para Spam</div>
+            <div className="value">{counts?.SPAN ?? '—'}</div>
+            <div className="label">A mover para Span</div>
           </div>
           <div className="stat">
             <div className="value">{counts?.LIXEIRA ?? '—'}</div>

@@ -1,3 +1,6 @@
+import re
+from collections import Counter
+
 from django.conf import settings
 from django.db.models import Q
 from django.db.models.functions import Coalesce
@@ -12,7 +15,7 @@ from .services import classify, fetch, imap_pool, job_runner
 from .services.classify import ClassificationError
 from .services.imap_pool import ImapConnectionError
 
-VALID_CATEGORIES = ('IMPORTANTE', 'SPAM', 'LIXEIRA')
+VALID_CATEGORIES = ('IMPORTANTE', 'SPAN', 'LIXEIRA')
 
 
 @api_view(['POST'])
@@ -175,6 +178,33 @@ def job_status(request, job_id):
     return Response(_job_status_payload(job))
 
 
+def _sender_label(from_addr):
+    """Extrai um rotulo legivel do remetente pra agrupar no resumo: o nome de exibicao
+    ("SHEIN" <shein@edm.shein.com> -> "SHEIN"), ou o dominio do email como fallback --
+    assim remetentes com varios subdominios de disparo (edm.shein.com, market.sheinmail.com)
+    ainda agrupam sob o mesmo nome reconhecivel."""
+    match = re.match(r'^"?([^"<]+?)"?\s*<', from_addr or '')
+    if match and match.group(1).strip():
+        return match.group(1).strip()
+    match2 = re.search(r'@([\w.-]+)', from_addr or '')
+    if match2:
+        return match2.group(1)
+    return (from_addr or '(desconhecido)')[:40]
+
+
+def _build_summary(job):
+    with_final = EmailRecord.objects.filter(job=job).annotate(final_cat=Coalesce('user_override', 'ai_category'))
+    summary = {}
+    for category in VALID_CATEGORIES:
+        from_addrs = with_final.filter(final_cat=category).values_list('from_addr', flat=True)
+        counter = Counter(_sender_label(addr) for addr in from_addrs)
+        summary[category] = {
+            'total': sum(counter.values()),
+            'top_senders': [{'sender': name, 'count': c} for name, c in counter.most_common(8)],
+        }
+    return summary
+
+
 def _job_status_payload(job):
     with_final = EmailRecord.objects.filter(job=job).annotate(final_cat=Coalesce('user_override', 'ai_category'))
     counts = {category: with_final.filter(final_cat=category).count() for category in VALID_CATEGORIES}
@@ -182,6 +212,8 @@ def _job_status_payload(job):
     classify_failed = EmailRecord.objects.filter(job=job, classify_status='failed').count()
     classify_done = EmailRecord.objects.filter(job=job, classify_status='done').count()
     fetched = EmailRecord.objects.filter(job=job).count()
+
+    summary = _build_summary(job) if job.status in ('reviewing', 'completed') else None
 
     return {
         'job': JobSerializer(job).data,
@@ -191,6 +223,7 @@ def _job_status_payload(job):
         'classify_failed': classify_failed,
         'classify_done': classify_done,
         'counts': counts,
+        'summary': summary,
     }
 
 

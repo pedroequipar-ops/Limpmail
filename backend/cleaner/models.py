@@ -50,7 +50,7 @@ class Job(models.Model):
 class EmailRecord(models.Model):
     CATEGORY_CHOICES = [
         ('IMPORTANTE', 'IMPORTANTE'),
-        ('SPAM', 'SPAM'),
+        ('SPAN', 'SPAN'),
         ('LIXEIRA', 'LIXEIRA'),
     ]
     CLASSIFY_STATUS_CHOICES = [

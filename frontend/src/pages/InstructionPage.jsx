@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import client from '../api/client.js'
 
-const PLACEHOLDER = `Ex.: Considere IMPORTANTE emails de bancos, órgãos governamentais, clientes e qualquer pessoa se dirigindo a mim diretamente. Considere SPAM propagandas, promoções e remetentes desconhecidos em massa. Considere LIXEIRA notificações automáticas antigas, confirmações de pedidos/entregas já concluídas e newsletters que não abro há anos.`
+const PLACEHOLDER = `Ex.: Considere IMPORTANTE emails de bancos, órgãos governamentais, clientes e qualquer pessoa se dirigindo a mim diretamente. Considere SPAN propagandas, promoções e remetentes desconhecidos em massa. Considere LIXEIRA notificações automáticas antigas, confirmações de pedidos/entregas já concluídas e newsletters que não abro há anos.`
 
 export default function InstructionPage() {
   const [text, setText] = useState('')
@@ -57,7 +57,7 @@ export default function InstructionPage() {
     <div>
       <h1>Instrução de classificação</h1>
       <p className="hint">
-        Este texto é enviado à IA junto com cada lote de emails para decidir entre IMPORTANTE, SPAM e LIXEIRA.
+        Este texto é enviado à IA junto com cada lote de emails para decidir entre IMPORTANTE, SPAN e LIXEIRA.
         Seja específico sobre remetentes, assuntos ou padrões que você considera de cada categoria.
       </p>
 

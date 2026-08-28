@@ -6,16 +6,16 @@ from collections import deque
 import requests
 from django.conf import settings
 
-VALID_CATEGORIES = ('IMPORTANTE', 'SPAM', 'LIXEIRA')
+VALID_CATEGORIES = ('IMPORTANTE', 'SPAN', 'LIXEIRA')
 
 SYSTEM_PROMPT_TEMPLATE = """Você é um classificador de emails. Use a instrução abaixo, definida pelo usuário, para decidir a categoria de cada email.
 
 Instrução do usuário:
 {instruction}
 
-Categorias possíveis (use exatamente estas strings): IMPORTANTE, SPAM, LIXEIRA.
+Categorias possíveis (use exatamente estas strings): IMPORTANTE, SPAN, LIXEIRA.
 - IMPORTANTE: emails relevantes que devem permanecer intocados.
-- SPAM: propaganda, phishing, golpes, emails não solicitados.
+- SPAN: propaganda, phishing, golpes, emails não solicitados.
 - LIXEIRA: emails que não são spam mas não têm mais utilidade (notificações antigas, confirmações expiradas, newsletters que o usuário não lê mais, etc.).
 
 Um item na resposta para cada email da lista recebida, na mesma ordem, usando o campo "id" fornecido em cada email."""
@@ -42,12 +42,12 @@ SUGGEST_INSTRUCTION_PROMPT = """Você vai analisar uma amostra de emails reais r
 entrada de um usuário (que acumula anos de emails) e propor uma instrução de classificação em português.
 
 Essa instrução será usada por outra IA para classificar automaticamente TODOS os emails da caixa em três categorias:
-IMPORTANTE (fica na caixa), SPAM (move pra pasta de spam) e LIXEIRA (move pra pasta de lixeira).
+IMPORTANTE (fica na caixa), SPAN (move pra pasta de spam) e LIXEIRA (move pra pasta de lixeira).
 
 Analise os padrões reais que aparecem na amostra abaixo: tipos de remetentes recorrentes, domínios de newsletter ou \
 propaganda, padrões de emails transacionais (pedidos, faturas, cobranças, prazos), sinais de spam ou phishing, etc.
 
-Para cada padrão recorrente que você notar (um mesmo remetente ou tipo de assunto aparecendo várias vezes na amostra), julgue pela ótica de uma pessoa comum recebendo isso todo dia: é o tipo de coisa que ela quer continuar recebendo regularmente — comunicação de trabalho, cobrança, prazo, algo que ela decidiu assinar e ainda usa — ou é o tipo de coisa que, insistindo em chegar toda hora, se torna incômoda e indesejada — propaganda repetitiva, newsletter que ninguém abre, notificação automática sem utilidade prática? Use esse julgamento como critério central pra decidir se aquele padrão recorrente vira IMPORTANTE, SPAM ou LIXEIRA na instrução final, não só o conteúdo isolado de cada email.
+Para cada padrão recorrente que você notar (um mesmo remetente ou tipo de assunto aparecendo várias vezes na amostra), julgue pela ótica de uma pessoa comum recebendo isso todo dia: é o tipo de coisa que ela quer continuar recebendo regularmente — comunicação de trabalho, cobrança, prazo, algo que ela decidiu assinar e ainda usa — ou é o tipo de coisa que, insistindo em chegar toda hora, se torna incômoda e indesejada — propaganda repetitiva, newsletter que ninguém abre, notificação automática sem utilidade prática? Use esse julgamento como critério central pra decidir se aquele padrão recorrente vira IMPORTANTE, SPAN ou LIXEIRA na instrução final, não só o conteúdo isolado de cada email.
 
 Escreva uma instrução clara, específica e prática (não genérica) que sirva de guia prático para classificar email \
 por email. A instrução deve:

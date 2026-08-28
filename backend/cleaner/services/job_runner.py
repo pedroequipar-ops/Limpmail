@@ -295,14 +295,14 @@ def _apply_phase(job, account, conn):
 
     pending = [
         r for r in EmailRecord.objects.filter(job=job, apply_status__in=['pending', 'failed'])
-        if r.final_category in ('SPAM', 'LIXEIRA')
+        if r.final_category in ('SPAN', 'LIXEIRA')
     ]
 
-    groups = {'SPAM': [], 'LIXEIRA': []}
+    groups = {'SPAN': [], 'LIXEIRA': []}
     for r in pending:
         groups[r.final_category].append(r)
 
-    folder_map = {'SPAM': account.spam_folder, 'LIXEIRA': account.trash_folder}
+    folder_map = {'SPAN': account.spam_folder, 'LIXEIRA': account.trash_folder}
 
     for category, records in groups.items():
         dest_folder = folder_map.get(category)

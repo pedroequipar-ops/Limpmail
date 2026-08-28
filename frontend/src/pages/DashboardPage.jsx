@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import client from '../api/client.js'
+import CategoryBadge from '../components/CategoryBadge.jsx'
 
 const STATUS_LABELS = {
   discovering: 'Descobrindo pastas',
@@ -164,8 +165,8 @@ export default function DashboardPage() {
           <div className="label">Importante</div>
         </div>
         <div className="stat">
-          <div className="value">{status.counts.SPAM}</div>
-          <div className="label">Spam</div>
+          <div className="value">{status.counts.SPAN}</div>
+          <div className="label">Span</div>
         </div>
         <div className="stat">
           <div className="value">{status.counts.LIXEIRA}</div>
@@ -179,6 +180,33 @@ export default function DashboardPage() {
           <Link to="/revisao"><button>Ir para revisão</button></Link>
         </div>
       ) : null}
+
+      {status.summary && (
+        <div className="card">
+          <h1 style={{ fontSize: 15 }}>Resumo</h1>
+          <div className="summary-grid">
+            {['IMPORTANTE', 'SPAN', 'LIXEIRA'].map((cat) => (
+              <div key={cat} className="summary-col">
+                <div className="summary-col-title">
+                  <CategoryBadge category={cat} />
+                  <span>{status.summary[cat].total}</span>
+                </div>
+                <ul className="summary-list">
+                  {status.summary[cat].top_senders.map((s) => (
+                    <li key={s.sender}>
+                      <span>{s.sender}</span>
+                      <span className="hint">{s.count}</span>
+                    </li>
+                  ))}
+                  {status.summary[cat].top_senders.length === 0 && (
+                    <li className="hint">(nenhum email nesta categoria)</li>
+                  )}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
