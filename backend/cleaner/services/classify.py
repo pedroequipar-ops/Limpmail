@@ -18,77 +18,76 @@ Categorias possíveis (use exatamente estas strings): IMPORTANTE, SPAM, LIXEIRA.
 - SPAM: propaganda, phishing, golpes, emails não solicitados.
 - LIXEIRA: emails que não são spam mas não têm mais utilidade (notificações antigas, confirmações expiradas, newsletters que o usuário não lê mais, etc.).
 
-Responda SOMENTE com um JSON no formato exato:
-{{"results": [{{"id": <int>, "category": "IMPORTANTE"}}, ...]}}
+Um item na resposta para cada email da lista recebida, na mesma ordem, usando o campo "id" fornecido em cada email."""
 
-Um item para cada email da lista recebida, na mesma ordem, usando o campo "id" fornecido em cada email."""
+RESPONSE_SCHEMA = {
+    'type': 'OBJECT',
+    'properties': {
+        'results': {
+            'type': 'ARRAY',
+            'items': {
+                'type': 'OBJECT',
+                'properties': {
+                    'id': {'type': 'INTEGER'},
+                    'category': {'type': 'STRING', 'enum': list(VALID_CATEGORIES)},
+                },
+                'required': ['id', 'category'],
+            },
+        },
+    },
+    'required': ['results'],
+}
 
 
 class ClassificationError(Exception):
     pass
 
 
-class TokenRateLimiter:
-    """Janela deslizante thread-safe para respeitar um orçamento de tokens/minuto (TPM).
+class RateLimiter:
+    """Janela deslizante thread-safe para limitar chamadas/minuto (rede de segurança, sem
+    teto de quota real conhecido para a API do Gemini no momento)."""
 
-    A Groq limita pelo tier gratuito principalmente por TPM, não por número de chamadas —
-    um limitador baseado só em contagem de requisições deixa passar bursts que estouram o TPM.
-    """
-
-    def __init__(self, tpm_budget, period=60.0):
-        self.tpm_budget = tpm_budget
+    def __init__(self, max_calls, period=60.0):
+        self.max_calls = max_calls
         self.period = period
-        self.usage = deque()  # cada item: [timestamp, tokens] (lista, para permitir correção por referência)
+        self.calls = deque()
         self.lock = threading.Lock()
 
-    def _prune(self, now):
-        while self.usage and now - self.usage[0][0] > self.period:
-            self.usage.popleft()
-
-    def wait_for_capacity(self, estimated_tokens):
-        """Bloqueia até haver orçamento de tokens disponível na janela e reserva `estimated_tokens`."""
+    def acquire(self):
         while True:
             with self.lock:
                 now = time.monotonic()
-                self._prune(now)
-                used = sum(entry[1] for entry in self.usage)
-                if used + estimated_tokens <= self.tpm_budget or not self.usage:
-                    entry = [now, estimated_tokens]
-                    self.usage.append(entry)
-                    return entry
-                sleep_for = self.period - (now - self.usage[0][0])
-            time.sleep(max(sleep_for, 0.2))
-
-    def record_actual(self, entry, actual_tokens):
-        """Corrige a reserva estimada para o valor real de tokens consumidos, mantendo a contabilidade precisa."""
-        with self.lock:
-            entry[1] = actual_tokens
+                while self.calls and now - self.calls[0] > self.period:
+                    self.calls.popleft()
+                if len(self.calls) < self.max_calls:
+                    self.calls.append(now)
+                    return
+                sleep_for = self.period - (now - self.calls[0])
+            time.sleep(max(sleep_for, 0.05))
 
 
-def estimate_tokens(system_prompt, user_content, num_items):
-    # heurística ~4 chars/token para o prompt, mais uma folga para o JSON de resposta + reasoning (mesmo em "low").
-    prompt_tokens = (len(system_prompt) + len(user_content)) // 4
-    completion_estimate = 40 * max(num_items, 1)
-    return prompt_tokens + completion_estimate
+def call_gemini(system_prompt, user_content):
+    if not settings.GEMINI_API_KEY:
+        raise ClassificationError('GEMINI_API_KEY não configurada (.env)')
 
-
-def call_groq(messages):
-    if not settings.GROQ_API_KEY:
-        raise ClassificationError('GROQ_API_KEY não configurada (.env)')
-
-    headers = {
-        'Authorization': f'Bearer {settings.GROQ_API_KEY}',
-        'Content-Type': 'application/json',
-    }
+    url = settings.GEMINI_API_URL.format(model=settings.GEMINI_MODEL)
     payload = {
-        'model': settings.GROQ_MODEL,
-        'messages': messages,
-        'temperature': 0,
-        'response_format': {'type': 'json_object'},
-        'reasoning_effort': 'low',
+        'system_instruction': {'parts': [{'text': system_prompt}]},
+        'contents': [{'role': 'user', 'parts': [{'text': user_content}]}],
+        'generationConfig': {
+            'temperature': 0,
+            'responseMimeType': 'application/json',
+            'thinkingConfig': {'thinkingLevel': 'low'},
+            'responseSchema': RESPONSE_SCHEMA,
+        },
     }
     try:
-        resp = requests.post(settings.GROQ_API_URL, headers=headers, json=payload, timeout=60)
+        resp = requests.post(
+            url,
+            params={'key': settings.GEMINI_API_KEY},
+            json=payload,
+            timeout=30,
+        )
     except requests.RequestException as exc:
         raise ClassificationError(f'network_error: {exc}') from exc
 
@@ -101,11 +100,10 @@ def call_groq(messages):
 
     try:
         data = resp.json()
-        content = data['choices'][0]['message']['content']
-        usage_tokens = (data.get('usage') or {}).get('total_tokens')
-        return content, usage_tokens
+        content = data['candidates'][0]['content']['parts'][0]['text']
+        return content
     except (ValueError, KeyError, IndexError) as exc:
-        raise ClassificationError(f'resposta inesperada da Groq: {exc}') from exc
+        raise ClassificationError(f'resposta inesperada do Gemini: {exc}') from exc
 
 
 def classify_batch(items, instruction_text, rate_limiter=None):
@@ -115,19 +113,10 @@ def classify_batch(items, instruction_text, rate_limiter=None):
     )
     user_content = json.dumps(items, ensure_ascii=False)
 
-    entry = None
     if rate_limiter is not None:
-        estimated = estimate_tokens(system_prompt, user_content, len(items))
-        entry = rate_limiter.wait_for_capacity(estimated)
+        rate_limiter.acquire()
 
-    messages = [
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_content},
-    ]
-    raw, usage_tokens = call_groq(messages)
-
-    if rate_limiter is not None and entry is not None and usage_tokens:
-        rate_limiter.record_actual(entry, usage_tokens)
+    raw = call_gemini(system_prompt, user_content)
 
     try:
         parsed = json.loads(raw)

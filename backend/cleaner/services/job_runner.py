@@ -134,7 +134,7 @@ def _classify_phase(job):
     instruction = Instruction.objects.first()
     instruction_text = instruction.text if instruction else ''
 
-    rate_limiter = classify.TokenRateLimiter(settings.GROQ_TPM, 60.0)
+    rate_limiter = classify.RateLimiter(settings.GEMINI_RPM, 60.0)
 
     while True:
         now = timezone.now()
@@ -144,7 +144,7 @@ def _classify_phase(job):
                 Q(classify_status='pending')
                 | Q(classify_status='failed', next_retry_at__lte=now, retry_count__lt=settings.MAX_BATCH_RETRIES)
             )
-            .order_by('id')[: settings.CLASSIFY_BATCH_SIZE * settings.GROQ_MAX_WORKERS * 3]
+            .order_by('id')[: settings.CLASSIFY_BATCH_SIZE * settings.GEMINI_MAX_WORKERS * 3]
         )
 
         if not candidates:
@@ -157,7 +157,7 @@ def _classify_phase(job):
             break
 
         batches = list(fetch.chunked(candidates, settings.CLASSIFY_BATCH_SIZE))
-        with ThreadPoolExecutor(max_workers=settings.GROQ_MAX_WORKERS) as executor:
+        with ThreadPoolExecutor(max_workers=settings.GEMINI_MAX_WORKERS) as executor:
             futures = [
                 executor.submit(_classify_one_batch, batch, instruction_text, rate_limiter)
                 for batch in batches
