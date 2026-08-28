@@ -145,12 +145,14 @@ REST_FRAMEWORK = {
 
 # Groq (classificação de emails)
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
-GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.1-8b-instant')
+GROQ_MODEL = os.environ.get('GROQ_MODEL', 'openai/gpt-oss-20b')
 GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
-# Limites conservadores do tier gratuito para llama-3.1-8b-instant; ajustável via .env
-GROQ_RPM = int(os.environ.get('GROQ_RPM', '28'))
-GROQ_MAX_WORKERS = int(os.environ.get('GROQ_MAX_WORKERS', '4'))
-CLASSIFY_BATCH_SIZE = int(os.environ.get('CLASSIFY_BATCH_SIZE', '25'))
+# O tier gratuito da Groq limita principalmente por tokens/minuto (TPM), nao por numero de
+# chamadas — o job runner usa TokenRateLimiter respeitando este orcamento. Ajuste conforme
+# o limite real da sua chave/modelo (aparece na mensagem de erro 429 se for excedido).
+GROQ_TPM = int(os.environ.get('GROQ_TPM', '7500'))
+GROQ_MAX_WORKERS = int(os.environ.get('GROQ_MAX_WORKERS', '2'))
+CLASSIFY_BATCH_SIZE = int(os.environ.get('CLASSIFY_BATCH_SIZE', '35'))
 FETCH_BATCH_SIZE = int(os.environ.get('FETCH_BATCH_SIZE', '500'))
-BODY_SNIPPET_BYTES = int(os.environ.get('BODY_SNIPPET_BYTES', '500'))
+BODY_SNIPPET_BYTES = int(os.environ.get('BODY_SNIPPET_BYTES', '3000'))
 MAX_BATCH_RETRIES = int(os.environ.get('MAX_BATCH_RETRIES', '5'))

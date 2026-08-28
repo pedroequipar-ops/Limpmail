@@ -108,7 +108,7 @@ def _fetch_phase(job, conn):
                 continue
             parsed = fetch.parse_headers(raw_headers)
             snippet_raw = snippets_map.get(uid, b'')
-            snippet = snippet_raw.decode('utf-8', errors='replace').strip()
+            snippet = fetch.clean_snippet(snippet_raw)
             message_id = parsed['message_id'] or f'<no-message-id-uid{uid}-job{job.id}@limpmail.local>'
             records.append(EmailRecord(
                 job=job,
@@ -134,7 +134,7 @@ def _classify_phase(job):
     instruction = Instruction.objects.first()
     instruction_text = instruction.text if instruction else ''
 
-    rate_limiter = classify.RateLimiter(settings.GROQ_RPM, 60.0)
+    rate_limiter = classify.TokenRateLimiter(settings.GROQ_TPM, 60.0)
 
     while True:
         now = timezone.now()
@@ -173,14 +173,13 @@ def _classify_one_batch(batch_records, instruction_text, rate_limiter):
             'from': r.from_addr,
             'subject': r.subject,
             'date': r.date,
-            'snippet': r.snippet[:300],
+            'snippet': r.snippet[:150],
         }
         for i, r in enumerate(batch_records)
     ]
 
-    rate_limiter.acquire()
     try:
-        result_map = classify.classify_batch(items, instruction_text)
+        result_map = classify.classify_batch(items, instruction_text, rate_limiter)
     except classify.ClassificationError:
         _mark_classify_failed(batch_records)
         return

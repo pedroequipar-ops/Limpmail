@@ -1,8 +1,13 @@
+import quopri
 import re
 from email.header import decode_header, make_header
 from email.parser import BytesHeaderParser
 
 from .imap_pool import ImapConnectionError
+
+_STYLE_SCRIPT_RE = re.compile(r'<(style|script)[^>]*>.*?</\1>', re.IGNORECASE | re.DOTALL)
+_TAG_RE = re.compile(r'<[^>]+>')
+_WS_RE = re.compile(r'\s+')
 
 UID_RE = re.compile(rb'UID (\d+)')
 
@@ -79,3 +84,31 @@ def parse_headers(raw: bytes):
 def extract_message_id(raw: bytes) -> str:
     msg = BytesHeaderParser().parsebytes(raw)
     return (msg.get('Message-ID', '') or '').strip()
+
+
+def _cut_unclosed_style_script(text):
+    # o fetch e truncado em N bytes; se um bloco <style>/<script> abrir sem fechar dentro da
+    # janela, tudo dali pra frente e ruido (CSS/JS cru) — corta a partir da tag aberta.
+    lowered = text.lower()
+    for tag in ('style', 'script'):
+        idx = lowered.rfind(f'<{tag}')
+        if idx != -1 and f'</{tag}>' not in lowered[idx:]:
+            text = text[:idx]
+            lowered = lowered[:idx]
+    return text
+
+
+def clean_snippet(raw: bytes) -> str:
+    """Decodifica quoted-printable (heuristica, sem depender do header real) e remove marcacao HTML/CSS,
+    deixando so texto visivel -- o corpo cru costuma vir com muito ruido (tags, boilerplate de <head>,
+    soft-breaks de QP) que infla o prompt sem ajudar a classificacao."""
+    try:
+        decoded = quopri.decodestring(raw)
+    except Exception:
+        decoded = raw
+    text = decoded.decode('utf-8', errors='replace')
+    text = _cut_unclosed_style_script(text)
+    text = _STYLE_SCRIPT_RE.sub(' ', text)
+    text = _TAG_RE.sub(' ', text)
+    text = _WS_RE.sub(' ', text).strip()
+    return text
