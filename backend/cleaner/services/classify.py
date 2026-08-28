@@ -47,6 +47,8 @@ IMPORTANTE (fica na caixa), SPAM (move pra pasta de spam) e LIXEIRA (move pra pa
 Analise os padrões reais que aparecem na amostra abaixo: tipos de remetentes recorrentes, domínios de newsletter ou \
 propaganda, padrões de emails transacionais (pedidos, faturas, cobranças, prazos), sinais de spam ou phishing, etc.
 
+Para cada padrão recorrente que você notar (um mesmo remetente ou tipo de assunto aparecendo várias vezes na amostra), julgue pela ótica de uma pessoa comum recebendo isso todo dia: é o tipo de coisa que ela quer continuar recebendo regularmente — comunicação de trabalho, cobrança, prazo, algo que ela decidiu assinar e ainda usa — ou é o tipo de coisa que, insistindo em chegar toda hora, se torna incômoda e indesejada — propaganda repetitiva, newsletter que ninguém abre, notificação automática sem utilidade prática? Use esse julgamento como critério central pra decidir se aquele padrão recorrente vira IMPORTANTE, SPAM ou LIXEIRA na instrução final, não só o conteúdo isolado de cada email.
+
 Escreva uma instrução clara, específica e prática (não genérica) que sirva de guia prático para classificar email \
 por email. A instrução deve:
 - Definir critérios objetivos para cada categoria.
