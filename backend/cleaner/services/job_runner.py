@@ -15,10 +15,32 @@ DB_WRITE_LOCK = threading.Lock()
 _running_jobs = set()
 _running_lock = threading.Lock()
 
+_cancel_requested = set()
+_cancel_lock = threading.Lock()
+
+
+class JobCancelled(Exception):
+    pass
+
 
 def is_running(job_id):
     with _running_lock:
         return job_id in _running_jobs
+
+
+def request_cancel(job_id):
+    with _cancel_lock:
+        _cancel_requested.add(job_id)
+
+
+def is_cancelled(job_id):
+    with _cancel_lock:
+        return job_id in _cancel_requested
+
+
+def _clear_cancel(job_id):
+    with _cancel_lock:
+        _cancel_requested.discard(job_id)
 
 
 def _mark_running(job_id):
@@ -76,12 +98,16 @@ def _run_job(job_id):
             job.status = 'reviewing'
             job.error_message = ''
             job.save(update_fields=['status', 'error_message', 'updated_at'])
+    except JobCancelled:
+        with DB_WRITE_LOCK:
+            job.delete()
     except Exception as exc:
         with DB_WRITE_LOCK:
             job.error_message = str(exc)
             job.save(update_fields=['error_message', 'updated_at'])
     finally:
         _unmark_running(job_id)
+        _clear_cancel(job_id)
 
 
 def _fetch_phase(job, conn):
@@ -98,6 +124,8 @@ def _fetch_phase(job, conn):
     remaining = [u for u in all_uids if u not in existing_uids]
 
     for batch in fetch.chunked(remaining, settings.FETCH_BATCH_SIZE):
+        if is_cancelled(job.id):
+            raise JobCancelled()
         headers_map = fetch.fetch_batch_headers(conn, batch)
         snippets_map = fetch.fetch_batch_snippets(conn, batch, settings.BODY_SNIPPET_BYTES)
 
@@ -137,6 +165,8 @@ def _classify_phase(job):
     rate_limiter = classify.RateLimiter(settings.GEMINI_RPM, 60.0)
 
     while True:
+        if is_cancelled(job.id):
+            raise JobCancelled()
         now = timezone.now()
         candidates = list(
             EmailRecord.objects.filter(job=job)
@@ -236,6 +266,9 @@ def _run_apply(job_id):
             job.status = 'completed'
             job.error_message = ''
             job.save(update_fields=['status', 'error_message', 'updated_at'])
+    except JobCancelled:
+        with DB_WRITE_LOCK:
+            job.delete()
     except Exception as exc:
         with DB_WRITE_LOCK:
             job.error_message = str(exc)
@@ -243,12 +276,15 @@ def _run_apply(job_id):
             job.save(update_fields=['error_message', 'status', 'updated_at'])
     finally:
         _unmark_running(f'apply-{job_id}')
+        _clear_cancel(f'apply-{job_id}')
 
 
 def _apply_phase(job, account, conn):
     all_uids = fetch.search_all_uids(conn)
     msgid_to_uid = {}
     for batch in fetch.chunked(all_uids, settings.FETCH_BATCH_SIZE):
+        if is_cancelled(f'apply-{job.id}'):
+            raise JobCancelled()
         headers_map = fetch.fetch_batch_message_ids(conn, batch)
         for uid, raw in headers_map.items():
             mid = fetch.extract_message_id(raw)

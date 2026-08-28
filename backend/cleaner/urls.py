@@ -10,6 +10,7 @@ urlpatterns = [
     path('jobs', views.start_job),
     path('jobs/current', views.current_job),
     path('jobs/<int:job_id>/resume', views.resume_job),
+    path('jobs/<int:job_id>/reset', views.reset_job),
     path('jobs/<int:job_id>/status', views.job_status),
     path('jobs/<int:job_id>/emails', views.job_emails),
     path('jobs/<int:job_id>/apply', views.apply_job),

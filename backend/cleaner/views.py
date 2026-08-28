@@ -236,6 +236,22 @@ def update_email(request, email_id):
 
 
 @api_view(['POST'])
+def reset_job(request, job_id):
+    job = get_object_or_404(Job, id=job_id)
+
+    if not job_runner.is_running(job.id) and not job_runner.is_apply_running(job.id):
+        job.delete()
+        return Response({'ok': True})
+
+    # job ainda rodando em background: sinaliza cancelamento e retorna na hora — a propria
+    # thread se auto-apaga (ver job_runner._run_job / _run_apply) assim que perceber o pedido,
+    # sem travar esta requisicao esperando.
+    job_runner.request_cancel(job.id)
+    job_runner.request_cancel(f'apply-{job.id}')
+    return Response({'ok': True, 'pending': True})
+
+
+@api_view(['POST'])
 def apply_job(request, job_id):
     job = get_object_or_404(Job, id=job_id)
     if job_runner.is_apply_running(job.id):

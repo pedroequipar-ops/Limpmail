@@ -15,6 +15,8 @@ export default function DashboardPage() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState('')
   const intervalRef = useRef(null)
 
@@ -22,6 +24,7 @@ export default function DashboardPage() {
     try {
       const res = await client.get('/jobs/current')
       setStatus(res.data)
+      if (!res.data) setCancelling(false)
     } catch (err) {
       setError(err.response?.data?.error || err.message)
     } finally {
@@ -62,6 +65,31 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleReset() {
+    if (!status?.job?.id) return
+    const confirmed = window.confirm(
+      'Isso apaga todo o progresso desta classificação (emails já buscados e já classificados) e deixa pronto pra começar do zero. A conta e a instrução salvas não são afetadas. Confirmar?'
+    )
+    if (!confirmed) return
+
+    setResetting(true)
+    setError('')
+    try {
+      const res = await client.post(`/jobs/${status.job.id}/reset`)
+      if (res.data.pending) {
+        setCancelling(true)
+      } else if (res.data.ok) {
+        setStatus(null)
+      } else {
+        setError(res.data.error || 'Não foi possível zerar agora')
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   if (loading) return <div className="hint">Carregando...</div>
 
   if (!status) {
@@ -95,14 +123,21 @@ export default function DashboardPage() {
             <strong>{STATUS_LABELS[job.status] || job.status}</strong>
             {status.running && <span className="hint"> — rodando em background...</span>}
           </div>
-          {isStuck && (
-            <button onClick={handleResume} disabled={starting}>
-              {starting ? 'Retomando...' : 'Retomar de onde parou'}
+          <div className="row" style={{ gap: 8 }}>
+            {isStuck && (
+              <button onClick={handleResume} disabled={starting}>
+                {starting ? 'Retomando...' : 'Retomar de onde parou'}
+              </button>
+            )}
+            <button className="danger" onClick={handleReset} disabled={resetting || cancelling}>
+              {resetting ? 'Zerando...' : cancelling ? 'Cancelando...' : 'Zerar e recomeçar'}
             </button>
-          )}
+          </div>
         </div>
 
         {job.error_message && <div className="msg error">Erro: {job.error_message}</div>}
+        {error && <div className="msg error">{error}</div>}
+        {cancelling && <div className="hint">Cancelamento solicitado — aguarde, a tela atualiza sozinha assim que parar.</div>}
 
         <div style={{ marginBottom: 14 }}>
           <div className="hint" style={{ marginBottom: 4 }}>
