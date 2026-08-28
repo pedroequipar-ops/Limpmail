@@ -107,6 +107,10 @@ h1 {
   font-size: 14px;
 }
 
+.field textarea {
+  resize: vertical;
+}
+
 .row {
   display: flex;
   gap: 12px;
