@@ -38,6 +38,25 @@ RESPONSE_SCHEMA = {
     'required': ['results'],
 }
 
+SUGGEST_INSTRUCTION_PROMPT = """Você vai analisar uma amostra de emails reais retirados de vários pontos da caixa de \
+entrada de um usuário (que acumula anos de emails) e propor uma instrução de classificação em português.
+
+Essa instrução será usada por outra IA para classificar automaticamente TODOS os emails da caixa em três categorias:
+IMPORTANTE (fica na caixa), SPAM (move pra pasta de spam) e LIXEIRA (move pra pasta de lixeira).
+
+Analise os padrões reais que aparecem na amostra abaixo: tipos de remetentes recorrentes, domínios de newsletter ou \
+propaganda, padrões de emails transacionais (pedidos, faturas, cobranças, prazos), sinais de spam ou phishing, etc.
+
+Escreva uma instrução clara, específica e prática (não genérica) que sirva de guia prático para classificar email \
+por email. A instrução deve:
+- Definir critérios objetivos para cada categoria.
+- Citar tipos concretos de remetente/assunto observados nesta amostra como exemplo, sem inventar dados que não \
+apareceram.
+- Ser escrita para orientar outra IA a decidir email por email — não é uma conversa com o usuário, é a instrução \
+em si.
+
+Responda SOMENTE com o texto da instrução (sem título, sem comentário sobre o que você fez, sem marcação markdown)."""
+
 
 class ClassificationError(Exception):
     pass
@@ -66,27 +85,30 @@ class RateLimiter:
             time.sleep(max(sleep_for, 0.05))
 
 
-def call_gemini(system_prompt, user_content):
+def call_gemini(system_prompt, user_content, response_schema=None, thinking_level='low', timeout=30):
     if not settings.GEMINI_API_KEY:
         raise ClassificationError('GEMINI_API_KEY não configurada (.env)')
 
     url = settings.GEMINI_API_URL.format(model=settings.GEMINI_MODEL)
+    generation_config = {
+        'temperature': 0,
+        'thinkingConfig': {'thinkingLevel': thinking_level},
+    }
+    if response_schema is not None:
+        generation_config['responseMimeType'] = 'application/json'
+        generation_config['responseSchema'] = response_schema
+
     payload = {
         'system_instruction': {'parts': [{'text': system_prompt}]},
         'contents': [{'role': 'user', 'parts': [{'text': user_content}]}],
-        'generationConfig': {
-            'temperature': 0,
-            'responseMimeType': 'application/json',
-            'thinkingConfig': {'thinkingLevel': 'low'},
-            'responseSchema': RESPONSE_SCHEMA,
-        },
+        'generationConfig': generation_config,
     }
     try:
         resp = requests.post(
             url,
             params={'key': settings.GEMINI_API_KEY},
             json=payload,
-            timeout=30,
+            timeout=timeout,
         )
     except requests.RequestException as exc:
         raise ClassificationError(f'network_error: {exc}') from exc
@@ -116,7 +138,7 @@ def classify_batch(items, instruction_text, rate_limiter=None):
     if rate_limiter is not None:
         rate_limiter.acquire()
 
-    raw = call_gemini(system_prompt, user_content)
+    raw = call_gemini(system_prompt, user_content, response_schema=RESPONSE_SCHEMA, thinking_level='low')
 
     try:
         parsed = json.loads(raw)
@@ -134,3 +156,11 @@ def classify_batch(items, instruction_text, rate_limiter=None):
         if cat in VALID_CATEGORIES:
             out[idx] = cat
     return out
+
+
+def suggest_instruction(sample_items):
+    """sample_items: list de dicts {from, subject, date, snippet} amostrados da caixa real.
+    Retorna o texto da instrução sugerida (string), sem salvar nada."""
+    user_content = json.dumps(sample_items, ensure_ascii=False)
+    text = call_gemini(SUGGEST_INSTRUCTION_PROMPT, user_content, response_schema=None, thinking_level='high', timeout=60)
+    return text.strip()

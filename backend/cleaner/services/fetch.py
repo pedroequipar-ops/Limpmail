@@ -12,6 +12,15 @@ _WS_RE = re.compile(r'\s+')
 UID_RE = re.compile(rb'UID (\d+)')
 
 
+def sample_evenly(seq, n):
+    """Amostra ate n itens espalhados uniformemente por toda a sequencia (nao so o inicio/fim) —
+    util para pegar uma visao representativa de uma caixa que acumula varios anos de email."""
+    if len(seq) <= n:
+        return list(seq)
+    step = len(seq) / n
+    return [seq[int(i * step)] for i in range(n)]
+
+
 def chunked(seq, size):
     for i in range(0, len(seq), size):
         yield seq[i:i + size]

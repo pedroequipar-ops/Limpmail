@@ -9,6 +9,9 @@ export default function InstructionPage() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState('')
+  const [suggestInfo, setSuggestInfo] = useState('')
 
   useEffect(() => {
     client.get('/instruction').then((res) => {
@@ -30,6 +33,26 @@ export default function InstructionPage() {
     }
   }
 
+  async function handleSuggest() {
+    setSuggesting(true)
+    setSuggestError('')
+    setSuggestInfo('')
+    try {
+      const res = await client.post('/instruction/suggest', {})
+      if (res.data.error) {
+        setSuggestError(res.data.error)
+      } else {
+        setDraft(res.data.suggestion)
+        setEditing(true)
+        setSuggestInfo(`Sugestão baseada em ${res.data.sample_count} emails reais da sua caixa. Revise antes de salvar.`)
+      }
+    } catch (err) {
+      setSuggestError(err.response?.data?.error || err.message)
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
   return (
     <div>
       <h1>Instrução de classificação</h1>
@@ -39,11 +62,24 @@ export default function InstructionPage() {
       </p>
 
       <div className="card">
+        <div className="toolbar">
+          <span className="hint">
+            Sem saber por onde começar? A IA pode ler uma amostra real da sua caixa e propor um rascunho.
+          </span>
+          <button className="secondary" onClick={handleSuggest} disabled={suggesting}>
+            {suggesting ? 'Lendo emails e gerando sugestão...' : 'Sugerir com base nos meus emails'}
+          </button>
+        </div>
+        {suggestError && <div className="msg error">{suggestError}</div>}
+        {suggestInfo && <div className="msg ok">{suggestInfo}</div>}
+      </div>
+
+      <div className="card">
         {editing ? (
           <>
             <div className="field">
               <textarea
-                rows={10}
+                rows={14}
                 value={draft}
                 placeholder={PLACEHOLDER}
                 onChange={(e) => setDraft(e.target.value)}
@@ -58,6 +94,7 @@ export default function InstructionPage() {
                 onClick={() => {
                   setDraft(text)
                   setEditing(false)
+                  setSuggestInfo('')
                 }}
               >
                 Cancelar

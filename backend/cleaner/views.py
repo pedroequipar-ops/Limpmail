@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Q
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
@@ -7,7 +8,8 @@ from rest_framework.response import Response
 
 from .models import Account, EmailRecord, Instruction, Job
 from .serializers import AccountSerializer, EmailRecordSerializer, InstructionSerializer, JobSerializer
-from .services import imap_pool, job_runner
+from .services import classify, fetch, imap_pool, job_runner
+from .services.classify import ClassificationError
 from .services.imap_pool import ImapConnectionError
 
 VALID_CATEGORIES = ('IMPORTANTE', 'SPAM', 'LIXEIRA')
@@ -75,6 +77,62 @@ def instruction_view(request):
     instruction.text = text
     instruction.save()
     return Response(InstructionSerializer(instruction).data)
+
+
+@api_view(['POST'])
+def suggest_instruction(request):
+    account = Account.objects.first()
+    if not account:
+        return Response({'error': 'nenhuma conta configurada'}, status=400)
+
+    sample_size = int(request.data.get('sample_size', 80))
+
+    try:
+        conn = imap_pool.connect(account.host, account.port, account.email, account.password)
+    except ImapConnectionError as exc:
+        return Response({'error': str(exc)}, status=200)
+
+    try:
+        imap_pool.select_inbox(conn, readonly=True)
+        all_uids = fetch.search_all_uids(conn)
+        if not all_uids:
+            return Response({'error': 'caixa de entrada vazia — nada para amostrar'}, status=200)
+
+        sample_uids = fetch.sample_evenly(all_uids, sample_size)
+        headers_map = fetch.fetch_batch_headers(conn, sample_uids)
+        snippets_map = fetch.fetch_batch_snippets(conn, sample_uids, settings.BODY_SNIPPET_BYTES)
+
+        items = []
+        for uid in sample_uids:
+            raw_headers = headers_map.get(uid)
+            if raw_headers is None:
+                continue
+            parsed = fetch.parse_headers(raw_headers)
+            snippet = fetch.clean_snippet(snippets_map.get(uid, b''))
+            items.append({
+                'from': parsed['from_addr'],
+                'subject': parsed['subject'],
+                'date': parsed['date'],
+                'snippet': snippet[:200],
+            })
+    except ImapConnectionError as exc:
+        return Response({'error': str(exc)}, status=200)
+    finally:
+        try:
+            conn.logout()
+        except Exception:
+            pass
+
+    if not items:
+        return Response({'error': 'nao foi possivel amostrar nenhum email'}, status=200)
+
+    try:
+        suggestion = classify.suggest_instruction(items)
+    except ClassificationError as exc:
+        return Response({'error': str(exc)}, status=200)
+
+    return Response({'suggestion': suggestion, 'sample_count': len(items)})
+
 
 
 @api_view(['POST'])
